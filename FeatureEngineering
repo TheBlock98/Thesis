@@ -1,25 +1,22 @@
 import pandas as pd
 from finta import TA
 import pandas_ta as pta
-from sklearn.preprocessing import StandardScaler
-import matplotlib.pyplot as plt
 import seaborn as sns
-import numpy as np
+import matplotlib.pyplot as plt
 
+dataSet = pd.read_csv("/Users/stefanobutera/PycharmProjects/Tesi/Data/BTCUSDT-spot-1h.csv", index_col="date", parse_dates=True)
 
-dataSet = pd.read_csv("/home/runner/Python/Tesi/Data/BTCUSDT-spot-1h.csv", index_col="date",parse_dates=True)
-
-SpxData = pd.read_csv("/home/runner/Python/Tesi/Data/SPX.csv",parse_dates=True)
+SpxData = pd.read_csv("/Users/stefanobutera/Desktop/DocTesi/NewTesi/Code/data/DataSet/SPX.csv",parse_dates=True)
 SpxData.rename(columns={'Date': 'date'}, inplace=True)
 SpxData.set_index('date', inplace=True)
 
-DxyData = pd.read_csv("/home/runner/Python/Tesi/Data/DXY.csv",parse_dates=True)
+DxyData = pd.read_csv("/Users/stefanobutera/Desktop/DocTesi/NewTesi/Code/data/DataSet/DXY.csv",parse_dates=True)
 DxyData.rename(columns={'Date': 'date'}, inplace=True)
 DxyData.set_index('date', inplace=True)
 
-
-
-
+DIXGEXData = pd.read_csv("/Users/stefanobutera/Desktop/DocTesi/NewTesi/Code/data/DataSet/DIXGEX.csv",parse_dates=True)
+DIXGEXData.rename(columns={'Date': 'date'}, inplace=True)
+DIXGEXData.set_index('date', inplace=True)
 dataSet = dataSet.iloc[1:]
 
 # Feature extraction using both `finta` and `pandas_ta`
@@ -28,6 +25,7 @@ dataSet = dataSet.iloc[1:]
 dataSet["EMA_20"] = TA.EMA(dataSet, 20)
 dataSet["EMA_50"] = TA.EMA(dataSet, 50)
 dataSet["EMA_200"] = TA.EMA(dataSet, 200)
+dataSet["hlc3"] = (dataSet["high"] + dataSet["low"] + dataSet["close"]) / 3
 
 
 
@@ -124,21 +122,27 @@ dataSet["VWAP"] = pta.vwap(high=dataSet["high"], low=dataSet["low"], close=dataS
 
 # inter-market relation (IMR)
 SpxData['SPX500-DailyReturn%'] = SpxData['Close'].pct_change() * 100
+SpxData['SPXEMA20']= TA.EMA(SpxData, 20)
+
 DxyData['DXY-DailyReturn%'] = DxyData['Close'].pct_change() * 100
+DxyData['DXYEMA200']= TA.EMA(DxyData, 200)
+
 
 dataSetIMR = dataSet # in this way we can test if IMR is useful or not
 
 
 SpxData.index = pd.to_datetime(SpxData.index)
 DxyData.index = pd.to_datetime(DxyData.index)
+DIXGEXData.index = pd.to_datetime(DIXGEXData.index)
 SpxData.index = SpxData.index.tz_localize(None)
 DxyData.index = DxyData.index.tz_localize(None)
+DIXGEXData.index = DIXGEXData.index.tz_localize(None)
 dataSetIMR.index = dataSetIMR.index.tz_localize(None) if dataSetIMR.index.tz is not None else dataSetIMR.index
 
 
-dataSetIMR = pd.merge_asof(dataSetIMR.sort_index(), SpxData['SPX500-DailyReturn%'], left_index=True, right_index=True, direction='backward')
-dataSetIMR = pd.merge_asof(dataSetIMR.sort_index(), DxyData['DXY-DailyReturn%'], left_index=True, right_index=True, direction='backward')
-
+dataSetIMR = pd.merge_asof(dataSetIMR.sort_index(), SpxData[['SPX500-DailyReturn%','SPXEMA20']], left_index=True, right_index=True, direction='backward')
+dataSetIMR = pd.merge_asof(dataSetIMR.sort_index(), DxyData[['DXY-DailyReturn%','DXYEMA200']], left_index=True, right_index=True, direction='backward')
+dataSetIMR = pd.merge_asof(dataSetIMR.sort_index(), DIXGEXData[['dix','gex']], left_index=True, right_index=True, direction='backward')
 
 
 
@@ -148,8 +152,8 @@ first_valid_index = dataSet.dropna().index[0]
 dataSetCleaned = dataSet.loc[first_valid_index:]
 dataSetIMRCleaned = dataSetIMR.loc[first_valid_index:]
 
-print(dataSetIMR[['SPX500-DailyReturn%', 'DXY-DailyReturn%']].dtypes)
-print(dataSetIMRCleaned[['SPX500-DailyReturn%', 'DXY-DailyReturn%']])
+print(dataSetIMR[['SPXEMA20', 'DXYEMA200']].dtypes)
+print(dataSetIMRCleaned[['SPXEMA20', 'DXYEMA200']])
 
 dataSetIMR.fillna(0, inplace=True)  # ho le chiusure del weekand così risolvo il problema
 
@@ -158,8 +162,12 @@ dataSetIMRCleaned = dataSetIMRCleaned.select_dtypes(include=['float64', 'int64']
 dataSetIMR['SPX500-DailyReturn%'] = pd.to_numeric(dataSetIMR['SPX500-DailyReturn%'], errors='coerce')
 dataSetIMR['DXY-DailyReturn%'] = pd.to_numeric(dataSetIMR['DXY-DailyReturn%'], errors='coerce')
 
+print(dataSetIMR.head())
+dataSetIMR.info()
+
+
 correlation_matrix = dataSetIMRCleaned.corr()
-print(correlation_matrix.loc[['SPX500-DailyReturn%', 'DXY-DailyReturn%']])
+
 
 
 ## VISUALIZATION ##
@@ -168,6 +176,7 @@ print(correlation_matrix.loc[['SPX500-DailyReturn%', 'DXY-DailyReturn%']])
 plt.figure(figsize=(35,35))
 sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', fmt='.2f', linewidths=.5)
 plt.title('Matrice delle Correlazioni  IMR')
+plt.savefig("matrice_correlazioni.png")
 
 plt.show()
 
