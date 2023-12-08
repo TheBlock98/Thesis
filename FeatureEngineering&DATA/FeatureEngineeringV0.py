@@ -5,17 +5,17 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 def dataSetMaker():
-  dataSet = pd.read_csv("BTCUSDT-spot-1h.csv", index_col="date", parse_dates=True)
+  dataSet = pd.read_csv("FeatureEngineering&DATA/BTCUSDT-spot-1h.csv", index_col="date", parse_dates=True)
 
-  SpxData = pd.read_csv("SPX.csv",parse_dates=True)
+  SpxData = pd.read_csv("FeatureEngineering&DATA/SPX.csv",parse_dates=True)
   SpxData.rename(columns={'Date': 'date'}, inplace=True)
   SpxData.set_index('date', inplace=True)
 
-  DxyData = pd.read_csv("DXY.csv",parse_dates=True)
+  DxyData = pd.read_csv("FeatureEngineering&DATA/DXY.csv",parse_dates=True)
   DxyData.rename(columns={'Date': 'date'}, inplace=True)
   DxyData.set_index('date', inplace=True)
 
-  DIXGEXData = pd.read_csv("DIXGEX.csv",parse_dates=True)
+  DIXGEXData = pd.read_csv("FeatureEngineering&DATA/DIXGEX.csv",parse_dates=True)
   DIXGEXData.rename(columns={'Date': 'date'}, inplace=True)
   DIXGEXData.set_index('date', inplace=True)
   dataSet = dataSet.iloc[1:]
