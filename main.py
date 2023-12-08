@@ -133,6 +133,9 @@ dataSet["EOM"] = pta.eom(high=dataSet["high"], low=dataSet["low"], close=dataSet
 # Money flow index:
 dataSet["MFI"] = pta.mfi(high=dataSet["high"], low=dataSet["low"], close=dataSet["close"], volume=dataSet["volume"], length=14)
 
+# Fourier discrete transofmration (FT) --> MFI
+
+
 
 # inter-market relation (IMR)
 SpxData['SPX500-DailyReturn%'] = SpxData['Close'].pct_change() * 100
