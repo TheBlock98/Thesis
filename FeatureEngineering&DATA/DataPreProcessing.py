@@ -92,7 +92,8 @@ for col in dataSet.iloc[:, 1:]:
         print(colored.stylize('Non stazionario (p-value > {:.2f})'.format(threshold), colored.fg('red')))
     
     print('-' * 40)
-
+# so the dataSet not is stationarity we have to use a no stationarity resiliant model like RNN or try to transform our dataSet in stationarity
+# but there will be some problems
 
 # In[ ]:
 
