@@ -8,6 +8,7 @@
 # In[3]:
 
 
+
 import plotly.io as pio
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -15,12 +16,13 @@ import plotly.express as px
 import pandas as pd
 
 pio.renderers.default = 'notebook'
-dataSet= pd.read_csv("/Users/stefanobutera/Desktop/DocTesi/NewTesi/Code/data/DataSet/dataSetIMRCleaned.csv ")
+dataSet=pd.read_csv("dataSetIMRCleaned.csv")
 
 
 fig, axs = plt.subplots(nrows=11, ncols=6, figsize=(20, 30))
 fig.suptitle('Distribution probability of features', y=1.02)
 
+""""
 
 
 for i, col in enumerate(dataSet.iloc[:, 1:]):
@@ -94,15 +96,23 @@ for col in dataSet.iloc[:, 1:]:
     print('-' * 40)
 # so the dataSet not is stationarity we have to use a no stationarity resiliant model like RNN or try to transform our dataSet in stationarity
 # but there will be some problems
+"""
 
-# In[ ]:
+# Normalize data
+
+from sklearn.preprocessing import MinMaxScaler
+
+# Select all columns except 'data'
+columns_to_normalize = dataSet.columns.drop('date')
+data_to_normalize = dataSet[columns_to_normalize]
+
+scaler = MinMaxScaler()
+normalized_data = scaler.fit_transform(data_to_normalize)
+
+# Create a new DataFrame without the 'data' column
+dataSetIMRNormalized = pd.DataFrame(normalized_data, columns=columns_to_normalize)
+
+dataSetIMRNormalized.to_csv("dataSetIMRNormalized.csv", index=False)
 
 
-
-
-
-# In[ ]:
-
-
-
-
+# building sequences 
