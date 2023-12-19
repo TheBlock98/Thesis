@@ -21,7 +21,7 @@ config = {
         "window_size": 720,
         "train_split_size": 0.70,
         "test_split_size": 0.20,
-        "valid_split_size" = 0.10
+        "valid_split_size": 0.10,
       
     },
     
@@ -31,6 +31,10 @@ config = {
         "lstm_size": 128,
         "dropout": 0.8,
         "num_class": 1,
+        "scaler_path": "Model/scalerLSTMV0.pkl",
+        "model_path": "Model/modelLSTMV0.pth",
+        "model_name": "LSTMV0.txt",
+        "save_model": True,
     },
     "training": {
         "device": "cpu",  # "cuda" or "cpu"
@@ -46,11 +50,13 @@ config = {
         "early_stopping": True,
         "early_stopping_patience": 5,
         
+        
+        
       },
 }
       
-    }
-}
+    
+
 
 dataSet = pd.read_csv("Model/dataSetIMRNormalized.csv")
 hlc3 = dataSet['hlc3']
@@ -150,6 +156,8 @@ scheduler = config["training"]["scheduler"](optimizer, patience=config["training
 
 # training loop:
 
+# training loop:
+
 for epoch in range(config["training"]["num_epochs"]):
     model.train()
     optimizer.zero_grad()
@@ -166,6 +174,12 @@ for epoch in range(config["training"]["num_epochs"]):
 
     # Reduced learning rate when a metric has stopped improving
     scheduler.step(val_loss)
+    # Output training/validation statistics
+    print(f'Epoch[{epoch+1}/{config["training"]["num_epochs"]}] | ' +
+          f'Loss train: {loss.item():.6f}, ' +
+          f'Loss test: {val_loss.item():.6f} | ' +
+          f'LR: {optimizer.param_groups[0]["lr"]:.6f}')
+
 
     # Check for early stopping
     if config["training"]["early_stopping"]:
@@ -185,5 +199,48 @@ for epoch in range(config["training"]["num_epochs"]):
           f'Loss test: {val_loss.item():.6f} | ' +
           f'LR: {optimizer.param_groups[0]["lr"]:.6f}')
 
-  
+
+
+# Test the model
+model.eval()
+with torch.no_grad():
+    test_outputs = model(testX)
+    test_loss = criterion(test_outputs, testY)
+    print(f'Test loss: {test_loss.item():.6f}')
+
+
+# Save the model
+torch.save(model.state_dict(), config["training"]["model_path"])
+print(f'ModelLSTMV0 saved to {config["training"]["model_path"]}')
+
+# Save the scaler
+joblib.dump(scaler, config["training"]["scaler_path"])
+print(f'Scaler saved to {config["training"]["scaler_path"]}')
+
+
+
+data_predict = test_outputs.data.numpy()
+dataY_plot = testY.data.numpy()
+# denormalize data
+data_predict = scaler.inverse_transform(data_predict)
+dataY_plot = scaler.inverse_transform(dataY_plot)
+# invert scaling for plotting
+dataY_plot = dataY_plot[:, 0]
+data_predict = data_predict[:, 0]
+# invert scaling for plotting
+dataY_plot = dataY_plot[-len(data_predict):]
+data_predict = data_predict[-len(data_predict):]
+# Plot predictions vs. actual
+plt.plot(dataY_plot, label='Data')
+plt.plot(data_predict, label='Predictions')
+plt.legend()
+plt.axvline(x=train_size, c='r', linestyle='--')
+plt.suptitle('Time-Series Prediction')
+plt.show()
+
+
+
+
+
+
   
