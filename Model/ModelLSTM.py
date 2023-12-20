@@ -14,6 +14,7 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 import torch.nn.functional as F
+from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error, accuracy_score
 
 
 config = {
@@ -31,7 +32,6 @@ config = {
         "lstm_size": 128,
         "dropout": 0.8,
         "num_class": 1,
-        "scaler_path": "Model/scalerLSTMV0.pkl",
         "model_path": "Model/modelLSTMV0.pth",
         "model_name": "LSTMV0.txt",
         "save_model": True,
@@ -56,7 +56,17 @@ config = {
 }
       
     
+""" 
+device = (
+  "cuda"
+  if torch.cuda.is_available()
+  else "mps"
+  if torch.backends.mps.is_available()
+  else "cpu"
+)
+print(f"Using {device} device")
 
+"""
 
 dataSet = pd.read_csv("Model/dataSetIMRNormalized.csv")
 hlc3 = dataSet['hlc3']
@@ -64,7 +74,7 @@ dataSet.drop(labels=['hlc3'], axis=1, inplace=True)
 dataSet.insert(0, 'hlc3', hlc3)
 
 # Dataloading (sliding windows)
-
+config["model"]["input_size"] = dataSet.shape[1] # with 1 have number of features
 
 def sliding_windows(df, windowSize):
   x = []
@@ -100,46 +110,56 @@ testY = Variable(torch.Tensor(np.array(y[train_size + val_size:])))
 
 # define LSTM V0 model
 class LSTM(nn.Module):
-
-  def __init__(self, input_size, num_lstm_layers, lstm_size, dropout,
-               num_class):
+  def __init__(self, input_size, num_lstm_layers, lstm_size, dropout, num_class):
     super(LSTM, self).__init__()
     self.input_size = input_size
     self.num_lstm_layers = num_lstm_layers
     self.lstm_size = lstm_size
     self.dropout = dropout
     self.num_class = num_class
-    self.dropout_layer = nn.Dropout(dropout)
 
+    # Fully connected layer as input layer
+    self.fc_input = nn.Linear(input_size, lstm_size) 
+
+    
+    # Define the LSTM layers
     self.lstm = nn.LSTM(input_size=input_size,
                         hidden_size=lstm_size,
                         num_layers=num_lstm_layers,
                         dropout=dropout,
                         batch_first=True)
 
-    self.fc = nn.Linear(lstm_size, num_class)
+    # Define the Dropout layer
+    self.dropout_layer = nn.Dropout(dropout)
+
+    # Define the output fully connected layer
+    # Define the output fully connected layer
+    self.fc_output = nn.Linear(lstm_size, num_class)
+
 
   def forward(self, x):
-    # x shape: (batch_size, seq_len, input_size)
-    # h_0 shape: (num_layers * num_directions, batch_size, lstm_size)
-    # c_0 shape: (num_layers * num_directions, batch_size, lstm_size)
-    h_0 = Variable(torch.zeros(self.num_lstm_layers, x.size(0),
-                               self.lstm_size))
-    c_0 = Variable(torch.zeros(self.num_lstm_layers, x.size(0),
-                               self.lstm_size))
-   
-    out, _ = self.lstm(x, (h_0.detach(), c_0.detach()))
-    out = F.relu(out)
-    out = self.dropout_layer(out)
-    # Get the last time step
-    out = out[:, -1, :]
+
+    # Pass data through the input fully connected layer
+    x = F.relu(self.fc_input(x))
     
-    # Pass the output through a fully connected layer
+    # Initialize hidden and cell states with zeros
+    h_0 = Variable(torch.zeros(self.num_lstm_layers, x.size(0), self.lstm_size))
+    c_0 = Variable(torch.zeros(self.num_lstm_layers, x.size(0), self.lstm_size))
+
+      # Pass through LSTM layers
+    out = x
+    for i in range(self.num_lstm_layers):
+      out, (h_0, c_0) = self.lstm(out, (h_0.detach(), c_0.detach()))
+      out = F.relu(out)
+      out = self.dropout_layer(out)
+
+    # We take the output of the last sequence only for the fully connected layer
+    out = out[:, -1, :]
     out = self.fc(out)
     return out
 
 
-model = LSTM(input_size=x.shape[2],
+model = LSTM(input_size=config["model"]["input_size"],
              num_lstm_layers=config["model"]["num_lstm_layers"],
              lstm_size=config["model"]["lstm_size"],
              dropout=config["model"]["dropout"],
@@ -158,64 +178,82 @@ scheduler = config["training"]["scheduler"](optimizer, patience=config["training
 
 # training loop:
 
-for epoch in range(config["training"]["num_epochs"]):
-    model.train()
-    optimizer.zero_grad()
-    outputs = model(trainX)
-    loss = criterion(outputs, trainY)
-    loss.backward()
-    optimizer.step()
+best_val_loss = float('inf')
+patience_counter = 0
 
-    # Evaluate the model and compute validation loss
+def training(model, optimizer, criterion, scheduler, trainX, trainY, valX, valY, epoch, best_val_loss,patience_counter):
+  print(f"Epoch {epoch+1} \n ---------- ")
+  model.train()
+  optimizer.zero_grad()
+  outputs = model(trainX)
+  loss = criterion(outputs, trainY)
+  loss.backward()
+  optimizer.step()
+
+  # Evaluate the model and compute validation loss
+  model.eval()
+  with torch.no_grad():
+      val_outputs = model(valX)
+      val_loss = criterion(val_outputs, valY)
+
+  # Reduced learning rate when a metric has stopped improving
+  scheduler.step(val_loss)
+  # Check for early stopping
+  if config["training"]["early_stopping"]:
+      if val_loss < best_val_loss:
+          best_val_loss = val_loss.item()  # Capture the best validation loss
+          patience_counter = 0  # Reset counter if validation loss improves
+      else:
+          patience_counter += 1
+          # Stop training if val_loss has not improved after patience limit
+          if patience_counter >= config["training"]["early_stopping_patience"]:
+              print(f'Early stopping: val_loss has not improved ' +
+                    f'for {config["training"]["early_stopping_patience"]} consecutive epochs.')
+              break  # Break out of the training loop
+  # Output training/validation statistics
+  print(f'Epoch[{epoch+1}/{config["training"]["num_epochs"]}] | ' +
+        f'Loss train: {loss.item():.6f}, ' +
+        f'Loss val: {val_loss.item():.6f} | ' +
+        f'LR: {optimizer.param_groups[0]["lr"]:.6f}')
+  return loss, val_loss, best_val_loss, patience_counter
+
+  
+  def testing(model,testX,testY,criterion):
+    # Test the model
     model.eval()
+    test_loss, correct = 0, 0
     with torch.no_grad():
-        val_outputs = model(valX)
-        val_loss = criterion(val_outputs, valY)
+        test_outputs = model(testX)
+        test_loss = criterion(test_outputs, testY)
+        print(f'Test loss: {test_loss.item():.6f}')
+    # compute performance KPY MSE, RMSE, MAE, accuracy, r2
+    y_pred = test_outputs.detach().numpy()
+    y_true = testY.detach().numpy()
+    kpy_mse = mean_squared_error(y_true, y_pred)
+    kpy_rmse = np.sqrt(kpy_mse)
+    kpy_mae = mean_absolute_error(y_true, y_pred)
+    kpy_r2 = r2_score(y_true, y_pred)
+    kpy_accuracy = accuracy_score(y_true, y_pred > 0.5)
+    print(f'KPY MSE: {kpy_mse:.6f}, RMSE: {kpy_rmse:.6f}, MAE: {kpy_mae:.6f}, ' +
+          f'Accuracy: {kpy_accuracy:.6f}, R2: {kpy_r2:.6f}')
+    return test_outputs,kpy_mse, kpy_rmse, kpy_mae, kpy_r2,kpy_accuracy
 
-    # Reduced learning rate when a metric has stopped improving
-    scheduler.step(val_loss)
-    # Output training/validation statistics
-    print(f'Epoch[{epoch+1}/{config["training"]["num_epochs"]}] | ' +
-          f'Loss train: {loss.item():.6f}, ' +
-          f'Loss test: {val_loss.item():.6f} | ' +
-          f'LR: {optimizer.param_groups[0]["lr"]:.6f}')
+    
 
-
-    # Check for early stopping
-    if config["training"]["early_stopping"]:
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            patience_counter = 0  # Reset counter if validation loss improves
-        else:
-            patience_counter += 1
-            # Stop training if val_loss has not improved after patience limit
-            if patience_counter >= config["training"]["early_stopping_patience"]:
-                print(f'Early stopping: val_loss has not improved ' +
-                      f'for {config["training"]["early_stopping_patience"]} consecutive epochs.')
-                break  # Break out of the training loop
-    # Output training/validation statistics
-    print(f'Epoch[{epoch+1}/{config["training"]["num_epochs"]}] | ' +
-          f'Loss train: {loss.item():.6f}, ' +
-          f'Loss test: {val_loss.item():.6f} | ' +
-          f'LR: {optimizer.param_groups[0]["lr"]:.6f}')
+  for epoch in range(config["training"]["num_epochs"]):
+    print(f"Epoch {t+1}\n-------------------------------")
+    loss, val_loss, best_val_loss, patience_counter = training(model, optimizer, criterion, scheduler, trainX, trainY, valX, valY, epoch,best_val_loss,patience_counter)
+    test_outputs,kpy_mse, kpy_rmse, kpy_mae, kpy_r2,kpy_accuracy = testing(model,testX,testY,criterion))
+  print("Done!")
 
 
 
-# Test the model
-model.eval()
-with torch.no_grad():
-    test_outputs = model(testX)
-    test_loss = criterion(test_outputs, testY)
-    print(f'Test loss: {test_loss.item():.6f}')
 
 
 # Save the model
 torch.save(model.state_dict(), config["training"]["model_path"])
 print(f'ModelLSTMV0 saved to {config["training"]["model_path"]}')
 
-# Save the scaler
-joblib.dump(scaler, config["training"]["scaler_path"])
-print(f'Scaler saved to {config["training"]["scaler_path"]}')
 
 
 
