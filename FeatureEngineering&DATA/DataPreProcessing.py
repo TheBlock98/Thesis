@@ -16,7 +16,7 @@ import plotly.express as px
 import pandas as pd
 
 pio.renderers.default = 'notebook'
-dataSet=pd.read_csv("dataSetIMRCleaned.csv")
+dataSet=pd.read_csv("/Users/stefanobutera/Desktop/Thesis-main/FeatureEngineering&DATA/dataSetIMRCleaned.csv")
 
 
 fig, axs = plt.subplots(nrows=11, ncols=6, figsize=(20, 30))
@@ -100,19 +100,28 @@ for col in dataSet.iloc[:, 1:]:
 
 # Normalize data
 
+import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
+import joblib
+import numpy as np
 
-# Select all columns except 'data'
+dataSet.replace([np.inf, -np.inf], 0, inplace=True)
+
+
+
 columns_to_normalize = dataSet.columns.drop('date')
 data_to_normalize = dataSet[columns_to_normalize]
 
+# Creo uno scaler e normalizza i dati
 scaler = MinMaxScaler()
 normalized_data = scaler.fit_transform(data_to_normalize)
 
-# Create a new DataFrame without the 'data' column
+# Salva lo scaler 
+joblib.dump(scaler, '/Users/stefanobutera/Desktop/Thesis-main/FeatureEngineering&DATA/scaler.pkl')
+
+# Crea un nuovo DataFrame senza la colonna 'date'
 dataSetIMRNormalized = pd.DataFrame(normalized_data, columns=columns_to_normalize)
 
-dataSetIMRNormalized.to_csv("dataSetIMRNormalized.csv", index=False)
-
-
+# Salva il DataFrame normalizzato in un file CSV
+dataSetIMRNormalized.to_csv("/Users/stefanobutera/Desktop/Thesis-main/FeatureEngineering&DATA/dataSetIMRNormalized.csv", index=False)
 
