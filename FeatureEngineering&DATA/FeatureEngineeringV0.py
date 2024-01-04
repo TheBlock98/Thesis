@@ -187,8 +187,7 @@ dataSetIMRCleaned.loc["2019-12-10":]
 
 dataSetIMRCleaned.head()
 
-
-
+dataSetIMRCleaned.to_csv('/Users/stefanobutera/ThesisGit/Thesis/FeatureEngineering&DATA/dataSetIMRCleaned.csv', index=False)
 
 
 
