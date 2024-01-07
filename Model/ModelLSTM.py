@@ -82,7 +82,7 @@ valDataSet = dataSet.iloc[train_size:val_size]
 testDataSet = dataSet.iloc[train_size:test_size]
 
 trX , trY = sliding_windows2(trDataSet, config["data"]["window_size"])
-valX , valY = windows(valDataSet, config["data"]["window_size"])
+valX , valY = sliding_windows2(valDataSet, config["data"]["window_size"])
 testX , testY = sliding_windows2(testDataSet, config["data"]["window_size"])
 
 
@@ -159,6 +159,7 @@ class CNNLSTMModel(nn.Module):
 
   def forward(self, x):
     # Apply CNN layers
+    x = x.permute(0, 2, 1)
     x = self.hybridNetwork[0](x)  # Conv1d
     x = self.hybridNetwork[1](x)  # ELU activation
 
@@ -264,7 +265,7 @@ def testLoop(model, test_loader, loss_fn):
   return test_loss, mse, rmse, mae, r2
 
 
-"""  
+ 
 # epoch loop
 for epoch in range(config["training"]["num_epochs"]):
     val_loss, avg_loss = trainLoop(HybridModelV1, train_loader, optimizer, scheduler, loss_fn)
@@ -282,7 +283,7 @@ for epoch in range(config["training"]["num_epochs"]):
     else:
         patience_counter += 1
     # Controllare l'early stopping
-    if patience_counter > early_stopping_patience:
+    if patience_counter > config["training"]["early_stopping_patience"]:
         print("Early stopping triggered.")
         break
     # Aggiornamento dello scheduler, se usato
@@ -299,4 +300,4 @@ print(f"RMSE: {rmse:.4f}")
 print(f"MAE: {mae:.4f}")
 print(f"R^2: {r2:.4f}")
 
-"""
+
