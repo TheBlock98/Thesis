@@ -16,7 +16,7 @@ import plotly.express as px
 import pandas as pd
 
 pio.renderers.default = 'notebook'
-dataSet=pd.read_csv("/Users/stefanobutera/ThesisGit/Thesis/FeatureEngineering&DATA/dataSetIMRCleaned.csv")
+dataSet=pd.read_csv("FeatureEngineering&DATA/dataSetIMRCleaned.csv")
 
 
 fig, axs = plt.subplots(nrows=11, ncols=6, figsize=(20, 30))
@@ -114,12 +114,20 @@ scaler = MinMaxScaler()
 normalized_data = scaler.fit_transform(dataSet)
 
 # Save the scaler
-joblib.dump(scaler, '/Users/stefanobutera/ThesisGit/Thesis/FeatureEngineering&DATA/scaler.pkl')
+joblib.dump(scaler, 'FeatureEngineering&DATA/scaler.pkl')
 
 # Convert normalized_data back to a pandas DataFrame
 normalized_df = pd.DataFrame(normalized_data, index=dataSet.index, columns=dataSet.columns)
 
 # Save the normalized DataFrame to a CSV file
-normalized_df.to_csv("/Users/stefanobutera/ThesisGit/Thesis/FeatureEngineering&DATA/dataSetIMRNormalized.csv", index=False)
+normalized_df.to_csv("FeatureEngineering&DATA/dataSetIMRNormalized.csv", index=False)
 
 
+# Count the number of zeroes that are not NaN in the EOM column
+zero_count = (normalized_df["EOM"] == 0).sum()
+
+# Confirm there are no NaN values by counting them
+nan_count = normalized_df["EOM"].isnull().sum()
+
+print(f"Number of zeroes (not NaN) in 'EOM' column: {zero_count}")
+print(f"Number of NaN values in 'EOM' column: {nan_count}")

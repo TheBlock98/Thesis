@@ -4,17 +4,17 @@ import pandas_ta as pta
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-dataSet = pd.read_csv("/Users/stefanobutera/Desktop/Thesis-main/FeatureEngineering&DATA/BTCUSDT-spot-1h.csv", index_col="date", parse_dates=True)
+dataSet = pd.read_csv("FeatureEngineering&DATA/BTCUSDT-spot-1h.csv", index_col="date", parse_dates=True)
 
-SpxData = pd.read_csv("/Users/stefanobutera/Desktop/Thesis-main/FeatureEngineering&DATA/SPX.csv",parse_dates=True)
+SpxData = pd.read_csv("FeatureEngineering&DATA/SPX.csv",parse_dates=True)
 SpxData.rename(columns={'Date': 'date'}, inplace=True)
 SpxData.set_index('date', inplace=True)
 
-DxyData = pd.read_csv("/Users/stefanobutera/Desktop/Thesis-main/FeatureEngineering&DATA/DXY.csv",parse_dates=True)
+DxyData = pd.read_csv("FeatureEngineering&DATA/DXY.csv",parse_dates=True)
 DxyData.rename(columns={'Date': 'date'}, inplace=True)
 DxyData.set_index('date', inplace=True)
 
-DIXGEXData = pd.read_csv("/Users/stefanobutera/Desktop/Thesis-main/FeatureEngineering&DATA/DIXGEX.csv",parse_dates=True)
+DIXGEXData = pd.read_csv("FeatureEngineering&DATA/DIX.csv",parse_dates=True)
 DIXGEXData.rename(columns={'Date': 'date'}, inplace=True)
 DIXGEXData.set_index('date', inplace=True)
 dataSet = dataSet.iloc[1:]
@@ -130,9 +130,13 @@ dataSet["MFI"] = pta.mfi(high=dataSet["high"], low=dataSet["low"], close=dataSet
 
 SpxData.drop(SpxData.index[:2])
 DxyData.drop(DxyData.index[:3])
-SpxData.fillna(0,inplace = True)
-DxyData.fillna(0,inplace = True)
+SpxData.fillna(method='ffill',inplace = True)
+DxyData.fillna(method='ffill',inplace = True)
 
+print("_____ test IMR 1________ ")
+print(SpxData.head())
+print(DxyData.head(-1))
+print("______________________")
 # inter-market relation (IMR)
 SpxData['SPX500-DailyReturn%'] = SpxData['Close'].pct_change() * 100
 SpxData['SPXEMA20']= TA.EMA(SpxData, 20)
@@ -143,8 +147,13 @@ DxyData['DXYEMA200']= TA.EMA(DxyData, 200)
 
 dataSetIMR = dataSet # in this way we can test if IMR is useful or not
 
-SpxData.drop(SpxData.index[:7168])
-DxyData.drop(DxyData.index[:7168])
+#SpxData.drop(SpxData.index[:7168])
+#DxyData.drop(DxyData.index[:7168])
+
+print("_____ test IMR 2________ ")
+print(SpxData.head())
+print(DxyData.head(-1))
+print("______________________")
 
 SpxData.index = pd.to_datetime(SpxData.index)
 DxyData.index = pd.to_datetime(DxyData.index)
@@ -154,12 +163,20 @@ DxyData.index = DxyData.index.tz_localize(None)
 DIXGEXData.index = DIXGEXData.index.tz_localize(None)
 dataSetIMR.index = dataSetIMR.index.tz_localize(None) if dataSetIMR.index.tz is not None else dataSetIMR.index
 
+print("test DIX ______________")
+print(DIXGEXData.head())
+print(DIXGEXData.head(-1))
+print("______________________")
 
-# after some pratics researches we have find that theese feature have a good fit data
 dataSetIMR = pd.merge_asof(dataSetIMR.sort_index(), SpxData[['SPX500-DailyReturn%','SPXEMA20']], left_index=True, right_index=True, direction='backward')
 dataSetIMR = pd.merge_asof(dataSetIMR.sort_index(), DxyData[['DXY-DailyReturn%','DXYEMA200']], left_index=True, right_index=True, direction='backward')
 dataSetIMR = pd.merge_asof(dataSetIMR.sort_index(), DIXGEXData[['dix','gex']], left_index=True, right_index=True, direction='backward')
 
+
+print("test dataSetIMR ______________")
+print(dataSetIMR.head())
+print(dataSetIMR.head(-1))
+print("______________________")
   # Find the index of the first non-NaN row across all columns
 first_valid_index = dataSetIMR.dropna().index[0]
 
@@ -169,25 +186,31 @@ first_valid_location = dataSetIMR.index.get_loc(first_valid_index)
 dataSetIMRCleaned = dataSetIMR.iloc[first_valid_location:]
 
 print(dataSetIMR[['SPXEMA20', 'DXYEMA200']].dtypes)
-print(dataSetIMRCleaned[['SPXEMA20', 'DXYEMA200']])
+print(dataSetIMR[['SPXEMA20', 'DXYEMA200']])
 
-dataSetIMRCleaned.fillna(0, inplace=True)  # ho le chiusure del weekand così risolvo il problema
+# dataSetIMR.fillna(method='ffill', inplace=True)  # ho le chiusure del weekand così risolvo il problema
 
 
 dataSetIMRCleaned = dataSetIMRCleaned.select_dtypes(include=['float64', 'int64'])
-dataSetIMRCleaned['SPX500-DailyReturn%'] = pd.to_numeric(dataSetIMR['SPX500-DailyReturn%'], errors='coerce')
-dataSetIMRCleaned['DXY-DailyReturn%'] = pd.to_numeric(dataSetIMR['DXY-DailyReturn%'], errors='coerce')
+dataSetIMRCleaned['SPX500-DailyReturn%'] = pd.to_numeric(dataSetIMRCleaned['SPX500-DailyReturn%'], errors='coerce')
+dataSetIMRCleaned['DXY-DailyReturn%'] = pd.to_numeric(dataSetIMRCleaned['DXY-DailyReturn%'], errors='coerce')
+
+dataSetIMRCleaned['EOM'].fillna(0, inplace=True)
 
 
 pd.set_option('display.max_columns', None)
 
 
-dataSetIMRCleaned.loc["2019-12-10":]
 
 
-dataSetIMRCleaned.head()
 
-dataSetIMRCleaned.to_csv('/Users/stefanobutera/ThesisGit/Thesis/FeatureEngineering&DATA/dataSetIMRCleaned.csv', index=False)
+
+
+print("test dataSetIMR ______________")
+print(dataSetIMRCleaned)
+
+print("______________________")
+dataSetIMRCleaned.to_csv('FeatureEngineering&DATA/dataSetIMRCleaned.csv', index=False)
 
 
 
