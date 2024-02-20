@@ -3,6 +3,7 @@ from finta import TA
 import pandas_ta as pta
 import seaborn as sns
 import matplotlib.pyplot as plt
+import numpy as np
 
 dataSet = pd.read_csv("FeatureEngineering&DATA/BTCUSDT-spot-1h.csv",
                       index_col="date",
@@ -27,7 +28,7 @@ dataSet = dataSet.iloc[1:]
 dataSet["EMA_21"] = TA.EMA(dataSet, 21)
 dataSet["EMA_50"] = TA.EMA(dataSet, 50)
 dataSet["EMA_200"] = TA.EMA(dataSet, 200)
-dataSet["lc2"] = (dataSet["close"] +dataSet["low"] ) / 2
+dataSet["HLC3"] = (dataSet["close"]  + dataSet["high"] + dataSet["low"] ) / 3
 
 # Average True Range (ATR) features
 dataSet["ATR"] = TA.ATR(dataSet, 24)  # Daily ATR
@@ -107,15 +108,12 @@ dataSet = pd.merge_asof(dataSet.sort_index(),
 
 # 35, 18, 10
 # Future Line of Demarcation (FLD)
-fldData = pd.DataFrame(index=dataSetD.index)
 for period in [97, 193, 385]:  # Organize the periods to calculate FLD
-  src = (dataSet["close"] +dataSet["low"] ) / 2
-  fldData[f'FLD{period}'] = src.shift(period)
-dataSet = pd.merge_asof(dataSet.sort_index(),
-                        fldData.sort_index(),
-                        left_index=True,
-                        right_index=True,
-                        direction='backward')
+  src = (dataSet["close"]  + dataSet["high"] + dataSet["low"] ) / 3
+  dataSet[f'FLD{period}'] = src.shift(period)
+  dataSet[f'FLD{period}'].fillna(0, inplace=True)
+  
+
 
 # Volume Weighted Average Price (VWAP)
 dataSet["D-VWAP"] = pta.vwap(high=dataSet["high"],
@@ -227,11 +225,12 @@ dataSetIMRCleaned['DXY-DailyReturn%'] = pd.to_numeric(
 
 dataSetIMRCleaned['EOM'].fillna(0, inplace=True)
 
+dataSet.replace([np.inf, -np.inf], 0, inplace=True)
+
 pd.set_option('display.max_columns', None)
 
 print("test dataSetIMR ______________")
 print(dataSetIMRCleaned)
-
+dataSet.info()
 print("______________________")
-dataSetIMRCleaned.to_csv('FeatureEngineering&DATA/dataSetIMRCleanedLC2.csv',
-                         index=False)
+dataSetIMRCleaned.to_csv('FeatureEngineering&DATA/dataSetIMRCleanedHLC3.csv',index=False)
